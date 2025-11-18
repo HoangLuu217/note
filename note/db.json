@@ -1,0 +1,25 @@
+{
+  "notes": [
+    {
+      "id": "1",
+      "title": "Ghi chú đầu tiên",
+      "content": "Đây là nội dung của ghi chú đầu tiên",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "title": "Ghi chú thứ hai",
+      "content": "Đây là nội dung của ghi chú thứ hai",
+      "createdAt": "2024-01-02T00:00:00.000Z",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "74bb",
+      "title": "w",
+      "content": "ưewew",
+      "createdAt": "2025-11-18T22:48:16.659Z",
+      "updatedAt": "2025-11-18T22:48:16.659Z"
+    }
+  ]
+}

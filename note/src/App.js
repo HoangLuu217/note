@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import './App.css';
 
-const STORAGE_KEY = 'notes-app-data';
+const API_URL = 'http://localhost:3001/notes';
 
 function App() {
   const [notes, setNotes] = useState([]);
@@ -9,33 +10,24 @@ function App() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  // Lấy danh sách notes từ localStorage
+  // Lấy danh sách notes từ json-server
   useEffect(() => {
-    loadNotes();
+    fetchNotes();
   }, []);
 
-  const loadNotes = () => {
+  const fetchNotes = async () => {
     try {
-      const savedNotes = localStorage.getItem(STORAGE_KEY);
-      if (savedNotes) {
-        const parsedNotes = JSON.parse(savedNotes);
-        setNotes(parsedNotes);
-      }
-    } catch (error) {
-      console.error('Có lỗi xảy ra khi tải dữ liệu:', error);
-    } finally {
+      const response = await axios.get(API_URL);
+      setNotes(response.data);
       setLoading(false);
-    }
-  };
-
-  const saveNotes = (notesToSave) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(notesToSave));
-      setNotes(notesToSave);
     } catch (error) {
-      console.error('Có lỗi xảy ra khi lưu dữ liệu:', error);
-      alert('Có lỗi xảy ra khi lưu note!');
+      console.error('Có lỗi xảy ra khi lấy dữ liệu:', error);
+      if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
+        console.warn('Json-server có thể chưa sẵn sàng. Vui lòng đợi vài giây...');
+      }
+      setLoading(false);
     }
   };
 
@@ -54,48 +46,85 @@ function App() {
   };
 
   // Lưu note (tạo mới hoặc cập nhật)
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim() || !content.trim()) {
       alert('Vui lòng nhập tiêu đề và nội dung!');
       return;
     }
 
-    const noteData = {
-      id: selectedNote ? selectedNote.id : Date.now(),
-      title: title.trim(),
-      content: content.trim(),
-      createdAt: selectedNote ? selectedNote.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    setSaving(true);
+    try {
+      const noteData = {
+        title: title.trim(),
+        content: content.trim(),
+        createdAt: selectedNote ? selectedNote.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
 
-    let updatedNotes;
-    if (selectedNote) {
-      // Cập nhật note
-      updatedNotes = notes.map(note =>
-        note.id === selectedNote.id ? noteData : note
-      );
-    } else {
-      // Tạo note mới
-      updatedNotes = [...notes, noteData];
-    }
+      let response;
+      if (selectedNote) {
+        // Cập nhật note
+        response = await axios.put(`${API_URL}/${selectedNote.id}`, noteData, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+      } else {
+        // Tạo note mới
+        response = await axios.post(API_URL, noteData, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+      }
 
-    saveNotes(updatedNotes);
-    if (!selectedNote) {
-      handleNewNote();
+      // Đợi một chút để đảm bảo server đã xử lý xong
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await fetchNotes();
+      if (!selectedNote) {
+        handleNewNote();
+      }
+    } catch (error) {
+      console.error('Có lỗi xảy ra khi lưu:', error);
+      let errorMessage = 'Có lỗi xảy ra khi lưu note!';
+      
+      if (error.response) {
+        // Server trả về lỗi
+        errorMessage = `Lỗi từ server: ${error.response.status} - ${error.response.statusText}`;
+        if (error.response.data) {
+          console.error('Chi tiết lỗi:', error.response.data);
+        }
+      } else if (error.request) {
+        // Request đã được gửi nhưng không nhận được response
+        errorMessage = 'Không thể kết nối đến server. Vui lòng kiểm tra json-server có đang chạy tại http://localhost:3001 không!';
+      } else {
+        // Lỗi khi setup request
+        errorMessage = `Lỗi: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setSaving(false);
     }
   };
 
   // Xóa note
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedNote) return;
     
     if (!window.confirm('Bạn có chắc chắn muốn xóa note này?')) {
       return;
     }
 
-    const updatedNotes = notes.filter(note => note.id !== selectedNote.id);
-    saveNotes(updatedNotes);
-    handleNewNote();
+    try {
+      await axios.delete(`${API_URL}/${selectedNote.id}`);
+      await fetchNotes();
+      handleNewNote();
+    } catch (error) {
+      console.error('Có lỗi xảy ra khi xóa:', error);
+      alert('Có lỗi xảy ra khi xóa note!');
+    }
   };
 
   if (loading) {
@@ -182,8 +211,9 @@ function App() {
             <button 
               className="btn-save" 
               onClick={handleSave}
+              disabled={saving}
             >
-              💾 Lưu
+              {saving ? 'Đang lưu...' : '💾 Lưu'}
             </button>
             {selectedNote && (
               <button className="btn-cancel" onClick={handleNewNote}>
